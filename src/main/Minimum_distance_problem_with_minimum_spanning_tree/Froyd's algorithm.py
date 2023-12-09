@@ -1,9 +1,11 @@
-import array
-import geopy
-import urllib
-import requests
-from geopy import distance
+#!/usr/bin/env python
+# coding: utf-8
 
+# In[211]:
+
+
+import array
+from collections import defaultdict
 import ctypes
 class Array:
     def __init__(self, size):
@@ -202,8 +204,12 @@ class Matrix:
 
 # # Creating Excel File containing all pairs with distances
 
-# In[212]:
+# In[1]:
 
+
+import requests
+import urllib.parse
+import geopy.distance
 
 cities1 = []
 cities2 = []
@@ -245,7 +251,6 @@ excel.to_excel('City_Distances.xlsx')
 
 
 import pandas as pd
-import geopy.distance
 
 cityorder = []
 #To make Common Indexes out of city names
@@ -256,135 +261,90 @@ for i in range(last_row_number):
     if file[0][i] not in cityorder:
         cityorder.append(file[0][i])
 
-def froyd_algorithm(matrix):
-    m = matrix
-    for k in range(m.numrows()):
-        for i in range(m.numrows()):
-            for j in range(m.numcols()):
-                minimum = min(m.getitem([i, j]), m.getitem([i, k]) + m.getitem([k, j]))
-                m.setitem([i, j], minimum)
-    return m
-    
+def floyd_algorithm(matrix):
+    # Function implementing Floyd's algorithm for finding shortest paths
+    num_vertices = len(matrix)
 
-def GetShortestPath(city1, city2):
-    try:
-        searchindex1 = cityorder.index(city1)
-        searchindex2 = cityorder.index(city2)
-    except:
-        return "incorrect city"
-    matrix = Matrix(102, 102)
-    file = pd.read_excel("City_Distances.xlsx")
-    last_row_number = file.shape[0]                   #Get last row number
-    for i in range(last_row_number):                  #Setup Adjancy Matrix
-        c1 = file[0][i]                              #save current city1 in c1 (i)
-        c2 = file[1][i]                              #save current city2 in c2 (j)
-        index1 = cityorder.index(c1)                 #Get index of city1
-        index2 = cityorder.index(c2)                 #Get index of city2
-        distance = file[2][i]                        #Get Distance between 2 cities
-        matrix.setitem([index1, index2], distance)   #set the distance between cities in corresponding i, j values
-    newmatrix = froyd_algorithm(matrix)              #froyd's algorithm to compute the minimum distance between all Pairs
-    return newmatrix.getitem([searchindex1, searchindex2])
-    
-GetShortestPath("Badin", "Badin")
+    for k in range(num_vertices):
+        for i in range(num_vertices):
+            for j in range(num_vertices):
+                if matrix[i][j] > matrix[i][k] + matrix[k][j]:
+                    matrix[i][j] = matrix[i][k] + matrix[k][j]
 
+    return matrix
 
-# In[215]:
+def get_shortest_path(city1, city2):
+    # Function to get the shortest path between two cities using Floyd's algorithm
+    city_distances = pd.read_excel('City_Distances.xlsx', index_col=0)
+    cities = city_distances.columns.tolist()
+    num_cities = len(cities)
 
+    if city1 not in cities or city2 not in cities:
+        return "Incorrect city names"
 
-from collections import defaultdict
+    city_index1 = cities.index(city1)
+    city_index2 = cities.index(city2)
+
+    adjacency_matrix = city_distances.values
+    shortest_paths = floyd_algorithm(adjacency_matrix)
+
+    shortest_distance = shortest_paths[city_index1][city_index2]
+
+    return shortest_distance
 
 class Graph:
- 
+    # Class representing a graph using adjacency list
     def __init__(self, vertices):
         self.V = vertices
- 
-        # Default dictionary to store graph
         self.graph = defaultdict(list)
 
-    def addEdge(self, v, w):
+    def add_edge(self, v, w):
         self.graph[v].append(w)
         self.graph[w].append(v)
- 
-    # A recursive function that uses
-    # visited[] and parent to detect
-    # cycle in subgraph reachable from vertex v.
-    def isCyclicUtil(self, v, visited, parent):
+
+    def is_cyclic_util(self, v, visited, parent):
         visited[v] = True
- 
-        # Recur for all the vertices
-        # adjacent to this vertex
+
         for i in self.graph[v]:
- 
-            # If the node is not
-            # visited then recurse on it
             if visited[i] == False:
-                if(self.isCyclicUtil(i, visited, v)):
+                if self.is_cyclic_util(i, visited, v):
                     return True
-            # If an adjacent vertex is
-            # visited and not parent
-            # of current vertex,
-            # then there is a cycle
             elif parent != i:
                 return True
- 
+
         return False
- 
-    def isCyclic(self):
- 
-        # Mark all the vertices
-        # as not visited
-        visited = [False]*(self.V)
+
+    def is_cyclic(self):
+        visited = [False] * self.V
         for i in range(self.V):
             if visited[i] == False:
-                if(self.isCyclicUtil
-                   (i, visited, -1)) == True:
+                if self.is_cyclic_util(i, visited, -1) == True:
                     return True
- 
+
         return False
 
+def find_minimum_spanning_tree():
+    # Function to find the minimum spanning tree of a graph
+    city_distances = pd.read_excel('City_Distances.xlsx', index_col=0)
+    cities = city_distances.columns.tolist()
+    num_cities = len(cities)
 
-# # Minimum Spanning Tree 
+    graph = Graph(num_cities)
+    for i in range(num_cities):
+        for j in range(i+1, num_cities):
+            if city_distances.loc[cities[i], cities[j]] > 0:
+                graph.add_edge(i, j)
 
-# In[219]:
+    minimum_spanning_tree = []
+    total_distance = 0
 
+    for i in range(num_cities):
+        for j in graph.graph[i]:
+            graph.graph[j].remove(i)  # Removing the reverse edge to avoid duplication
+            graph.graph[i].remove(j)
 
-import pandas as pd
+            if not graph.is_cyclic():
+                minimum_spanning_tree.append((cities[i], cities[j]))
+                total_distance += city_distances.loc[cities[i], cities[j]]
 
-def create_minimum_spanning_tree():
-    cityorder = []
-    file = pd.read_excel("City_Distances_Sorted.xlsx")
-    last_row_number = file.shape[0]
-
-    for i in range(last_row_number):
-        if file[0][i] not in cityorder:
-            cityorder.append(file[0][i])
-
-    g = Graph(102)
-    city1 = []
-    city2 = []
-    distance = []
-    totalkm = 0
-
-    for i in range(last_row_number):
-        if file[2][i] != 0:
-            c1 = file[0][i]
-            c2 = file[1][i]
-            ind1 = cityorder.index(c1)
-            ind2 = cityorder.index(c2)
-            g.addEdge(ind1, ind2)
-            
-            if not g.isCyclic():
-                city1.append(c1)
-                city2.append(c2)
-                distance.append(file[2][i])
-                totalkm += file[2][i]
-                continue
-            else:
-                g.graph[ind1].pop()
-                g.graph[ind2].pop()
-
-    excel = pd.DataFrame(list(zip(city1, city2, distance)))
-    excel.to_excel('Minimum Spanning Tree.xlsx')
-    print("Total Kilometers covered: " + str(totalkm))
-
-create_minimum_spanning_tree()
+    return minimum_spanning_tree, total_distance
